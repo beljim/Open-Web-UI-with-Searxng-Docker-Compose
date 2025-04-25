@@ -1,33 +1,36 @@
 services:
-  searxng:
-    container_name: searxng
-    image: searxng/searxng:latest
+  openwebui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: open-webui
     ports:
-      - "8080:8080"
+      - "3000:8080"
     volumes:
-      - ./searxng:/etc/searxng:rw
-    env_file:
-      - .env
-    restart: unless-stopped
-    cap_drop:
-      - ALL
-    cap_add:
-      - CHOWN
-      - SETGID
-      - SETUID
-      - DAC_OVERRIDE
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "1m"
-        max-file: "1"
-  open-webui:
-    image: ghcr.io/open-webui/open-webui:cuda
+      # Open WebUI data volume mapping to the specified path on the host
+      - /opt/openwebui:/app/backend/data
     environment:
-      ENABLE_RAG_WEB_SEARCH: True
+      ENABLE_RAG_WEB_SEARCH: "True"
       RAG_WEB_SEARCH_ENGINE: "searxng"
       RAG_WEB_SEARCH_RESULT_COUNT: 3
       RAG_WEB_SEARCH_CONCURRENT_REQUESTS: 10
+      # Pointing Open WebUI to the SearXNG service name and port
       SEARXNG_QUERY_URL: "http://searxng:8080/search?q=<query>"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: always
+
+  searxng:
+    image: searxng/searxng
+    container_name: searxng
+    # Mapping host port 8080 to container port 80
     ports:
-      - "3000:8080"
+      - "8085:8080"
+    volumes:
+      # BIND MOUNT: Mapping a subdirectory within the Open WebUI path on the host
+      # to the SearXNG configuration directory inside the container.
+      - /opt/openwebui/searxng/config:/etc/searxng
+    environment:
+      # REQUIRED: Set a strong secret key for SearXNG
+      SEARXNG_SECRET_KEY: "JtJcv2AM7gYWTWD5BcSA"
+      # REQUIRED: Point SearXNG to its settings file location
+      SEARXNG_SETTINGS_PATH: "/etc/searxng/settings.yml"
+    restart: always
